@@ -40,7 +40,7 @@ const ResumeUpload = () => {
     formData.append('resume', file); 
 
     try {
-      const response = await fetch('http://localhost:5000/api/resumes/upload', {
+      const response = await fetch('https://aira-backend-80ix.onrender.com', {
         method: 'POST',
         headers: {
           // 2. Attach the JWT token from Redux to the headers
@@ -65,7 +65,7 @@ const ResumeUpload = () => {
     dispatch(matchJobsStart());
 
     try {
-      const response = await fetch(`http://localhost:5000/api/resumes/${result._id}/match-jobs`, {
+      const response = await fetch(`https://aira-backend-80ix.onrender.com`, {
         method: 'POST',
         headers: {
           // 3. Attach the JWT token here as well!
