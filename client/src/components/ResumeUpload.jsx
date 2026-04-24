@@ -65,14 +65,14 @@ const ResumeUpload = () => {
     dispatch(matchJobsStart());
 
     try {
+      // FIX: Added /${result._id}/jobs to the end of the URL!
       const response = await fetch(`https://aira-backend-80ix.onrender.com/api/resumes/${result._id}/jobs`, {
-        method: 'POST',
+        // ... (if your route is a GET request, you should also remove method: 'POST')
+        method: 'GET', // <-- Change this to GET if your backend route is router.get(...)
         headers: {
-          // 3. Attach the JWT token here as well!
           Authorization: `Bearer ${user.token}`,
         },
       });
-
       const data = await response.json();
 
       if (!response.ok) throw new Error(data.message || "Failed to match jobs");
