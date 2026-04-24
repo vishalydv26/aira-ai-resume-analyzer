@@ -65,7 +65,7 @@ const ResumeUpload = () => {
     dispatch(matchJobsStart());
 
     try {
-      const response = await fetch(`https://aira-backend-80ix.onrender.com/api/resumes`, {
+      const response = await fetch(`https://aira-backend-80ix.onrender.com/api/resumes/${result._id}/jobs`, {
         method: 'POST',
         headers: {
           // 3. Attach the JWT token here as well!
