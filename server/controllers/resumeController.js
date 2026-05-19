@@ -76,3 +76,11 @@ exports.analyzeResume = async (req, res) => {
     });
   }
 };
+exports.getHistory = async (req, res) => {
+  try {
+    const records = await Analysis.find({ userId: req.user.id }).sort({ createdAt: 1 });
+    res.json(records);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
