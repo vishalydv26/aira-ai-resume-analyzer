@@ -6,7 +6,7 @@ const connectDB = require('./config/db');
 const { register, login } = require('./controllers/authController');
 // Make sure these exact names are inside the curly braces!
 const { analyzeResume, getHistory } = require('./controllers/resumeController');
-const { protect } = require('./middleware/authMiddleware');
+const { protect } = require('./middleware/auth');
 
 const app = express();
 connectDB();
