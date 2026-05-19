@@ -4,8 +4,9 @@ const cors = require('cors');
 const multer = require('multer');
 const connectDB = require('./config/db');
 const { register, login } = require('./controllers/authController');
+// Make sure these exact names are inside the curly braces!
 const { analyzeResume, getHistory } = require('./controllers/resumeController');
-const { protect } = require('./middleware/authMiddleware'); // (or wherever your auth middleware file is)
+const { protect } = require('./middleware/authMiddleware');
 
 const app = express();
 connectDB();
