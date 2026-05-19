@@ -1,4 +1,39 @@
-// Inside server/controllers/resumeController.js
+const Analysis = require('../models/Analysis');
+const pdfParse = require('pdf-parse'); // <-- THIS FIXES YOUR CRASH
+const { GoogleGenAI } = require('@google/genai');
+
+// Initalize Google Gemini API Client
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+// Custom Computational Engine: Local Keyword Analyzer
+const runCustomKeywordMatch = (resumeText, jobDescription) => {
+  const cleanText = (text) => text.toLowerCase().replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/);
+  
+  const resumeTokens = new Set(cleanText(resumeText));
+  const jobTokens = cleanText(jobDescription);
+
+  const stopWords = new Set(['and', 'the', 'is', 'with', 'for', 'to', 'in', 'of', 'a', 'an']);
+  const uniqueJobKeywords = [...new Set(jobTokens)].filter(word => word.length > 2 && !stopWords.has(word));
+
+  const matchedKeywords = [];
+  const missingKeywords = [];
+
+  uniqueJobKeywords.forEach(word => {
+    if (resumeTokens.has(word)) {
+      matchedKeywords.push(word);
+    } else {
+      missingKeywords.push(word);
+    }
+  });
+
+  const keywordScore = uniqueJobKeywords.length > 0 
+    ? Math.round((matchedKeywords.length / uniqueJobKeywords.length) * 100) 
+    : 0;
+
+  return { keywordScore, matchedKeywords, missingKeywords };
+};
+
+// --- YOUR EXPORTED CONTROLLERS ---
 
 exports.analyzeResume = async (req, res) => {
   try {
@@ -38,7 +73,6 @@ exports.analyzeResume = async (req, res) => {
     let rawText = aiResponse.text.trim();
     
     // NUCLEAR CLEANING LAYER:
-    // This safely destroys any and all markdown ticks, no matter how the AI formats them.
     rawText = rawText.replace(/```(json)?/gi, "").replace(/```/g, "").trim();
 
     // Step 4: Secure JSON Parsing
@@ -48,7 +82,6 @@ exports.analyzeResume = async (req, res) => {
     const overallScore = Math.round((keywordScore * 0.4) + ((aiData.semanticScore || 70) * 0.6));
 
     // Step 6: Save Snapshot to MongoDB History Workspace
-    // SAFETY FIX: If req.user is undefined, it uses a fallback ID instead of crashing!
     const activeUserId = req.user && req.user.id ? req.user.id : "65f1234567890123456789ab";
 
     const newAnalysis = await Analysis.create({
@@ -65,7 +98,6 @@ exports.analyzeResume = async (req, res) => {
 
     res.status(201).json(newAnalysis);
   } catch (err) {
-    // This logs the EXACT reason to your terminal so you can read what failed
     console.error("--- CRITICAL BACKEND ERROR PATH ---");
     console.error(err); 
     console.error("-----------------------------------");
@@ -76,6 +108,7 @@ exports.analyzeResume = async (req, res) => {
     });
   }
 };
+
 exports.getHistory = async (req, res) => {
   try {
     const records = await Analysis.find({ userId: req.user.id }).sort({ createdAt: 1 });
