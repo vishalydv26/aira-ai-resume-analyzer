@@ -1,115 +1,77 @@
-// client/src/components/Signup.jsx
-import { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate, Link } from 'react-router-dom';
-import { authStart, authSuccess, authFailure } from '../store/authSlice';
+import React, { useState } from 'react';
 
-const Signup = () => {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-  });
-
-  const dispatch = useDispatch();
-  const navigate = useNavigate(); // Used to redirect after signup
-  const { isLoading, error } = useSelector((state) => state.auth);
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+export default function Signup({ onAuthSuccess, switchToLogin }) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    dispatch(authStart());
-
+    setLoading(true);
     try {
-      const response = await fetch('https://aira-backend-80ix.onrender.com/api/auth/signup', {
+      const response = await fetch('http://localhost:5000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ name, email, password })
       });
-
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Registration failed');
+      if (response.ok) {
+        localStorage.setItem('token', data.token);
+        onAuthSuccess(data.user);
+      } else {
+        alert(data.message || "Registration encountered an error.");
       }
-
-      // Save user & token to Redux
-      dispatch(authSuccess(data));
-      
-      // Redirect to the dashboard/upload page
-      navigate('/');
     } catch (err) {
-      dispatch(authFailure(err.message));
+      alert("Database error during account compilation.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-md mx-auto bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 mt-12 transition-colors duration-300 animate-fade-in-up">
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400">
-          Create Account
-        </h2>
-        <p className="text-slate-500 dark:text-slate-400 mt-2 font-medium">Join AiRA and start analyzing</p>
-      </div>
+    <div className="bg-gray-900 border border-gray-800 p-8 rounded-3xl max-w-md mx-auto my-12 shadow-2xl">
+      <h2 className="text-2xl font-black text-white text-center mb-2">Create Workspace Account</h2>
+      <p className="text-gray-500 text-center text-sm mb-6">Initialize your secure analytics profile database</p>
       
-      {error && <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-800 rounded-xl text-center font-medium">{error}</div>}
-
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-slate-700 dark:text-slate-300 font-bold mb-2">Full Name</label>
+          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Full Name</label>
           <input 
-            type="text" 
-            name="name" 
-            value={formData.name} 
-            onChange={handleChange} 
-            required 
-            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white transition-colors"
+            type="text" value={name} onChange={(e) => setName(e.target.value)}
+            className="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 text-sm"
+            placeholder="John Doe" required 
           />
         </div>
-        
         <div>
-          <label className="block text-slate-700 dark:text-slate-300 font-bold mb-2">Email Address</label>
+          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Academic Email</label>
           <input 
-            type="email" 
-            name="email" 
-            value={formData.email} 
-            onChange={handleChange} 
-            required 
-            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white transition-colors"
+            type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+            className="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 text-sm"
+            placeholder="name@university.edu" required 
           />
         </div>
-
         <div>
-          <label className="block text-slate-700 dark:text-slate-300 font-bold mb-2">Password</label>
+          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Security Password</label>
           <input 
-            type="password" 
-            name="password" 
-            value={formData.password} 
-            onChange={handleChange} 
-            required 
-            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white transition-colors"
+            type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+            className="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 text-sm"
+            placeholder="Minimum 6 characters" required 
           />
         </div>
 
         <button 
-          type="submit" 
-          disabled={isLoading}
-          className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-500 dark:to-violet-500 text-white font-bold py-3 px-6 rounded-xl shadow-md hover:shadow-lg hover:from-indigo-700 hover:to-violet-700 disabled:opacity-50 transform transition active:scale-95 mt-4"
+          type="submit" disabled={loading}
+          className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-bold py-3 rounded-xl shadow-lg hover:opacity-95 transition text-sm"
         >
-          {isLoading ? 'Creating Account...' : 'Sign Up'}
+          {loading ? "Registering Node Data..." : "Generate Developer Profile"}
         </button>
       </form>
 
-      <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700 text-center text-sm font-medium">
-        <p className="text-slate-500 dark:text-slate-400">
-          Already have an account? <Link to="/login" className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">Log in</Link>
-        </p>
-      </div>
+      <p className="text-sm text-gray-500 text-center mt-6">
+        Already registered?{' '}
+        <button onClick={switchToLogin} className="text-emerald-400 font-medium hover:underline">Log in instead</button>
+      </p>
     </div>
   );
-};
-
-export default Signup;
+}
