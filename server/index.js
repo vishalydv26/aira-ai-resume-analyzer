@@ -5,7 +5,7 @@ const multer = require('multer');
 const connectDB = require('./config/db');
 const { register, login } = require('./controllers/authController');
 const { analyzeResume, getHistory } = require('./controllers/resumeController');
-const { protect } = require('./middleware/auth');
+const { protect } = require('./middleware/authMiddleware'); // (or wherever your auth middleware file is)
 
 const app = express();
 connectDB();
