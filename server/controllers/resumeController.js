@@ -1,124 +1,101 @@
-// server/controllers/resumeController.js
+const Analysis = require('../models/Analysis');
 const pdfParse = require('pdf-parse');
-const Resume = require('../models/Resume');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI } = require('@google/genai');
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Initalize Google Gemini API Client
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-const uploadResume = async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: 'Please upload a PDF file.' });
+// Custom Computational Engine: Local Keyword Analyzer
+const runCustomKeywordMatch = (resumeText, jobDescription) => {
+  const cleanText = (text) => text.toLowerCase().replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/);
+  
+  const resumeTokens = new Set(cleanText(resumeText));
+  const jobTokens = cleanText(jobDescription);
+
+  // Focus filter for critical high-value tech terms
+  const stopWords = new Set(['and', 'the', 'is', 'with', 'for', 'to', 'in', 'of', 'a', 'an']);
+  const uniqueJobKeywords = [...new Set(jobTokens)].filter(word => word.length > 2 && !stopWords.has(word));
+
+  const matchedKeywords = [];
+  const missingKeywords = [];
+
+  uniqueJobKeywords.forEach(word => {
+    if (resumeTokens.has(word)) {
+      matchedKeywords.push(word);
+    } else {
+      missingKeywords.push(word);
     }
+  });
 
-    // 1. Extract Text from PDF (This will now work perfectly!)
-    const dataBuffer = req.file.buffer;
-    const data = await pdfParse(dataBuffer);
-    const extractedText = data.text;
+  const keywordScore = uniqueJobKeywords.length > 0 
+    ? Math.round((matchedKeywords.length / uniqueJobKeywords.length) * 100) 
+    : 0;
 
-    // 2. Prepare the AI Prompt
+  return { keywordScore, matchedKeywords, missingKeywords };
+};
+
+exports.analyzeResume = async (req, res) => {
+  try {
+    const { jobTitle, jobDescription } = req.body;
+    if (!req.file) return res.status(400).json({ message: "No resume file uploaded." });
+
+    // Step 1: Direct Memory Buffer PDF Extraction
+    const parsedPdf = await pdfParse(req.file.buffer);
+    const resumeText = parsedPdf.text;
+
+    // Step 2: Fire Custom Internal NLP Engine
+    const { keywordScore, matchedKeywords, missingKeywords } = runCustomKeywordMatch(resumeText, jobDescription);
+
+    // Step 3: Run AI Semantic Orchestrator 
     const prompt = `
-      You are an expert ATS (Applicant Tracking System). Analyze the following resume text and extract the key information.
-      Return the output STRICTLY as a JSON object with the following keys:
-      - candidateName (string, infer from text, or "Unknown" if not found)
-      - skills (array of strings)
-      - experienceLevel (string: "Entry", "Mid", or "Senior")
-      - summary (a brief 2-sentence professional summary based on the text)
+      You are an expert Enterprise Applicant Tracking System (ATS). Analyze this Resume against this Job Description.
       
-      Resume Text:
-      ${extractedText}
-    `;
-
-    // 3. Call the Gemini API
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    let aiText = response.text();
-
-    // 4. Parse the AI JSON Output safely
-    const jsonMatch = aiText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("AI did not return valid JSON");
-    }
-    const aiData = JSON.parse(jsonMatch[0]);
-
-    // 5. Save to MongoDB
-    const newResume = new Resume({
-      user: req.user.id,
-      candidateName: aiData.candidateName,
-      originalFileName: req.file.originalname,
-      extractedText: extractedText,
-      skills: aiData.skills,
-      aiAnalysis: {
-        experienceLevel: aiData.experienceLevel,
-        summary: aiData.summary
+      Resume Text: "${resumeText}"
+      Job Description: "${jobDescription}"
+      
+      Provide your response in strict valid raw JSON formatting matching this scheme exactly:
+      {
+        "semanticScore": 85, 
+        "gapAnalysis": "Detailed architectural analysis string regarding context alignment...",
+        "roadmap": ["Action item step 1 to upskill", "Action item step 2..."]
       }
-    });
-
-    await newResume.save();
-
-    // 6. Send Success Response
-    res.status(201).json({
-      message: 'Resume analyzed successfully!',
-      data: newResume
-    });
-
-  } catch (error) {
-    console.error("Error processing resume:", error);
-    res.status(500).json({ message: 'Server error during parsing or AI analysis.' });
-  }
-};
-// Add this right below your uploadResume function
-const matchJobs = async (req, res) => {
-  try {
-    const resumeId = req.params.id;
-    const resume = await Resume.findById(resumeId);
-
-    if (!resume) {
-      return res.status(404).json({ message: 'Resume not found' });
-    }
-
-    // 1. Prepare the AI Prompt for Job Matching
-    const prompt = `
-      You are an expert tech recruiter. Based on the following candidate profile, suggest 3 highly suitable job roles.
-      Candidate Skills: ${resume.skills.join(', ')}
-      Experience Level: ${resume.aiAnalysis.experienceLevel}
-      Summary: ${resume.aiAnalysis.summary}
-
-      Return the output STRICTLY as a JSON array of objects. Each object must have these keys:
-      - title (string: The job title)
-      - description (string: A 1-sentence reason why it's a good match)
-      - matchPercentage (number: An estimated match score between 70 and 100)
     `;
 
-    // 2. Call the Gemini API
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    let aiText = response.text();
-
-    // 3. Parse the AI JSON Output safely
-    const jsonMatch = aiText.match(/\[[\s\S]*\]/); // Looking for an array [] this time!
-    if (!jsonMatch) {
-      throw new Error("AI did not return a valid JSON array");
-    }
-    const recommendedJobs = JSON.parse(jsonMatch[0]);
-
-    // 4. Update the Resume in MongoDB
-    resume.matchedJobs = recommendedJobs;
-    await resume.save();
-
-    // 5. Send Success Response
-    res.status(200).json({
-      message: 'Jobs matched successfully!',
-      matchedJobs: recommendedJobs
+    const aiResponse = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
     });
 
-  } catch (error) {
-    console.error("Error matching jobs:", error);
-    res.status(500).json({ message: 'Server error during job matching.' });
+    const aiData = JSON.parse(aiResponse.text.trim());
+
+    // Step 4: Compute the Engineering Hybrid Blend Score
+    const overallScore = Math.round((keywordScore * 0.4) + (aiData.semanticScore * 0.6));
+
+    // Step 5: Save Snapshot to MongoDB User History Workspace
+    const newAnalysis = await Analysis.create({
+      userId: req.user.id,
+      jobTitle,
+      overallScore,
+      keywordScore,
+      semanticScore: aiData.semanticScore,
+      matchedKeywords,
+      missingKeywords,
+      gapAnalysis: aiData.gapAnalysis,
+      roadmap: aiData.roadmap
+    });
+
+    res.status(201).json(newAnalysis);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Analytical execution failed. File error or malformed JSON payload." });
   }
 };
 
-// Update your exports to include the new function!
-module.exports = { uploadResume, matchJobs };
+exports.getHistory = async (req, res) => {
+  try {
+    const records = await Analysis.find({ userId: req.user.id }).sort({ createdAt: 1 });
+    res.json(records);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
